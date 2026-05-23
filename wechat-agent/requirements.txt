@@ -1,0 +1,11 @@
+rapidocr-onnxruntime
+pyautogui>=0.9.54
+pillow>=10.0.0
+mss>=9.0.0
+pywin32>=306
+pywinauto>=0.6.8
+anthropic>=0.39.0
+openai>=1.0.0
+pyperclip>=1.8.0
+opencv-python>=4.8.0
+flask>=3.0.0

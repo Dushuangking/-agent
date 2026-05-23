@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeChat Auto-Reply Agent</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e1e4eb;
+    --text-dim: #8b8fa3;
+    --accent: #6c8cff;
+    --accent-hover: #8ba3ff;
+    --green: #4ade80;
+    --red: #f87171;
+    --yellow: #facc15;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .app { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; background: var(--surface); border-radius: var(--radius);
+    border: 1px solid var(--border); margin-bottom: 20px;
+  }
+  .header h1 { font-size: 1.3rem; font-weight: 600; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px;
+  }
+  .status-dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.off { background: var(--red); }
+  .status-text { font-size: 0.85rem; color: var(--text-dim); }
+
+  /* Buttons */
+  .btn {
+    padding: 10px 22px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 0.9rem; font-weight: 500; transition: all .15s;
+  }
+  .btn-start { background: var(--green); color: #000; }
+  .btn-start:hover { filter: brightness(1.15); }
+  .btn-stop { background: var(--red); color: #fff; }
+  .btn-stop:hover { filter: brightness(1.15); }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .btn-secondary:hover { background: #3a3d4a; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-accent:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+  .card h3 { font-size: 0.9rem; font-weight: 500; margin: 14px 0 8px; color: var(--text-dim); }
+
+  /* Form */
+  .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 180px; }
+  .form-group label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 4px; }
+  .form-group input, .form-group select, textarea {
+    width: 100%; padding: 9px 12px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--text);
+    font-size: 0.85rem; font-family: inherit;
+  }
+  .form-group input:focus, textarea:focus { border-color: var(--accent); outline: none; }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* Region display */
+  .region-info {
+    display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  }
+  .region-coords {
+    font-family: "SF Mono", "Cascadia Code", monospace;
+    font-size: 0.85rem; color: var(--accent);
+    background: var(--bg); padding: 8px 14px; border-radius: 6px;
+  }
+
+  /* Calibration modal */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.8); z-index: 100; justify-content: center; align-items: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius); max-width: 95vw; max-height: 90vh;
+    overflow: auto; padding: 20px;
+  }
+  .modal h2 { margin-bottom: 12px; }
+  .calib-container {
+    position: relative; display: inline-block; cursor: crosshair;
+    -webkit-user-select: none; user-select: none;
+  }
+  .calib-container img { max-width: 100%; max-height: 70vh; display: block; }
+  .calib-box {
+    position: absolute; border: 2px dashed var(--green); background: rgba(74,222,128,0.12);
+    pointer-events: none;
+  }
+
+  /* Logs */
+  .log-container {
+    background: var(--bg); border-radius: 6px; padding: 12px 16px;
+    max-height: 280px; overflow-y: auto; font-family: "SF Mono", "Cascadia Code", monospace;
+    font-size: 0.78rem; line-height: 1.7; color: var(--text-dim);
+  }
+  .log-container .log-line { white-space: pre-wrap; word-break: break-all; }
+  .log-container .log-line.important { color: var(--text); }
+
+  /* Instructions */
+  .instructions ol { padding-left: 20px; color: var(--text-dim); font-size: 0.85rem; }
+  .instructions ol li { margin-bottom: 6px; }
+  .instructions code {
+    background: var(--bg); padding: 2px 6px; border-radius: 4px;
+    font-size: 0.8rem; color: var(--accent);
+  }
+
+  /* Notification */
+  .toast {
+    position: fixed; top: 20px; right: 20px; padding: 12px 20px;
+    border-radius: 8px; font-size: 0.85rem; z-index: 200;
+    animation: slideIn 0.3s ease;
+  }
+  .toast.success { background: #166534; color: #4ade80; border: 1px solid #4ade80; }
+  .toast.error { background: #7f1d1d; color: #f87171; border: 1px solid #f87171; }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .header { flex-direction: column; gap: 12px; text-align: center; }
+    .form-row { flex-direction: column; }
+    .form-group { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>WeChat Auto-Reply Agent</h1>
+      <span class="status-text">
+        <span class="status-dot off" id="statusDot"></span>
+        <span id="statusLabel">未启动</span>
+      </span>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-start" id="btnStart" onclick="startAgent()">▶ 启动</button>
+      <button class="btn btn-stop" id="btnStop" onclick="stopAgent()" disabled>⏹ 停止</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="card">
+    <h2>⚙ 设置</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-...">
+      </div>
+      <div class="form-group" style="max-width:160px;">
+        <label>模型</label>
+        <select id="model">
+          <option value="deepseek-chat">deepseek-chat</option>
+          <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+          <option value="claude-opus-4-7">claude-opus-4-7</option>
+        </select>
+      </div>
+      <div class="form-group" style="max-width:140px;">
+        <label>Provider</label>
+        <select id="provider">
+          <option value="deepseek">DeepSeek</option>
+          <option value="claude">Claude</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>个性文件 (personality/default.txt)</label>
+        <input type="text" id="personalityFile" value="personality/default.txt" placeholder="personality/default.txt">
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn btn-accent btn-sm" onclick="saveConfig()">保存设置</button>
+      <button class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="loadConfig()">重新加载</button>
+    </div>
+  </div>
+
+  <!-- Chat Region -->
+  <div class="card">
+    <h2>📐 聊天区域设置</h2>
+    <div class="region-info">
+      <span class="region-coords" id="regionDisplay">尚未校准</span>
+      <button class="btn btn-accent btn-sm" onclick="openCalibration()">可视校准</button>
+      <span style="font-size:0.75rem;color:var(--text-dim);">
+        点击后在截图上按住拖拽框选消息区域
+      </span>
+    </div>
+  </div>
+
+  <!-- Logs -->
+  <div class="card">
+    <h2>📋 运行日志</h2>
+    <div class="log-container" id="logContainer">
+      <div class="log-line">等待启动...</div>
+    </div>
+    <div style="margin-top:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="clearLogs()">清空日志</button>
+    </div>
+  </div>
+
+  <!-- Instructions -->
+  <div class="card instructions">
+    <h2>📖 使用说明</h2>
+    <ol>
+      <li><strong>打开微信</strong> — 进入你想自动回复的群聊或私聊窗口</li>
+      <li><strong>校准聊天区域</strong> — 点击 <code>可视校准</code>，在微信截图上<b>按住拖拽框选消息区域</b>，绿色框内就是识别范围</li>
+      <li><strong>配置 API Key</strong> — 在设置中填入你的 DeepSeek 或 Claude API Key</li>
+      <li><strong>编辑个性文件</strong> — 修改 <code>personality/default.txt</code> 来定制你的AI人设</li>
+      <li><strong>启动</strong> — 点击 <code>启动</code> 按钮，Agent 开始自动监控和回复</li>
+      <li><strong>停止</strong> — 随时点击 <code>停止</code> 或关闭本页面</li>
+    </ol>
+    <h3>💡 提示</h3>
+    <ul style="padding-left:20px;color:var(--text-dim);font-size:0.85rem;">
+      <li>私聊模式：给好友创建 <code>personality/friends/好友昵称.txt</code> 可定制私聊风格</li>
+      <li>群聊模式：自动识别多人群聊，只在@你或聊到兴趣话题时回复</li>
+      <li>安全限制：默认 7:00-凌晨2:00 运行，每小时最多 120 条回复</li>
+      <li>修改设置后需要 <b>重新启动</b> Agent 才能生效</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Calibration Modal -->
+<div class="modal-overlay" id="calibModal">
+  <div class="modal">
+    <h2>拖拽框选聊天消息区域</h2>
+    <p style="font-size:0.8rem;color:var(--text-dim);margin-bottom:12px;">
+      在微信截图上<b>按住鼠标拖拽</b>，框选显示聊天消息的区域（避开顶部标题栏和底部输入框）
+    </p>
+    <div class="calib-container" id="calibContainer">
+      <img id="calibImage" src="" alt="微信窗口截图" draggable="false">
+      <div class="calib-box" id="calibBox" style="display:none;"></div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+      <span class="region-coords" id="calibCoords" style="flex:1;">未选择区域</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeCalibration()">取消</button>
+      <button class="btn btn-accent btn-sm" onclick="applyCalibration()">应用此区域</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===================== State =====================
+let calibData = null; // { displayW, displayH, winW, winH }
+let calibRect = null; // { x1, y1, x2, y2 } — current selection
+
+// ===================== Init =====================
+window.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  checkStatus();
+  connectLogs();
+  setInterval(checkStatus, 3000);
+});
+
+// ===================== Status =====================
+async function checkStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    updateStatusUI(d.running);
+  } catch(e) { /* server not up */ }
+}
+
+function updateStatusUI(running) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusLabel');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  if (running) {
+    dot.className = 'status-dot on';
+    label.textContent = '运行中';
+    btnStart.disabled = true;
+    btnStop.disabled = false;
+  } else {
+    dot.className = 'status-dot off';
+    label.textContent = '未启动';
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+  }
+}
+
+// ===================== Start / Stop =====================
+async function startAgent() {
+  try {
+    const r = await fetch('/api/start', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) {
+      toast('Agent 已启动', 'success');
+      updateStatusUI(true);
+    } else {
+      toast(d.error || '启动失败', 'error');
+    }
+  } catch(e) {
+    toast('连接服务器失败，请确认 web/server.py 已启动', 'error');
+  }
+}
+
+async function stopAgent() {
+  try {
+    const r = await fetch('/api/stop', { method: 'POST' });
+    const d = await r.json();
+    toast(d.message || '已停止', 'success');
+    updateStatusUI(false);
+  } catch(e) {
+    toast('连接失败', 'error');
+  }
+}
+
+// ===================== Config =====================
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config');
+    const d = await r.json();
+    document.getElementById('apiKey').value = d.llm?.api_key || '';
+    document.getElementById('model').value = d.llm?.model || 'deepseek-chat';
+    document.getElementById('provider').value = d.llm?.provider || 'deepseek';
+    document.getElementById('personalityFile').value = d.personality_file || 'personality/default.txt';
+
+    const region = d.wechat?.chat_region || {};
+    if (region.mode === 'percent') {
+      document.getElementById('regionDisplay').textContent =
+        `模式: 百分比 | X:${(region.x_percent*100).toFixed(0)}% Y:${(region.y_percent*100).toFixed(0)}% W:${(region.w_percent*100).toFixed(0)}% H:${(region.h_percent*100).toFixed(0)}%`;
+    } else {
+      document.getElementById('regionDisplay').textContent = '模式: 像素 (未校准)';
+    }
+  } catch(e) {
+    console.error('加载配置失败:', e);
+  }
+}
+
+async function saveConfig() {
+  try {
+    const body = {
+      llm: {
+        api_key: document.getElementById('apiKey').value,
+        model: document.getElementById('model').value,
+        provider: document.getElementById('provider').value,
+      },
+      personality_file: document.getElementById('personalityFile').value,
+    };
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) toast('设置已保存', 'success');
+    else toast('保存失败', 'error');
+  } catch(e) {
+    toast('连接失败', 'error');
+  }
+}
+
+// ===================== Calibration (drag to select) =====================
+async function openCalibration() {
+  document.getElementById('calibModal').classList.add('active');
+  document.getElementById('calibBox').style.display = 'none';
+  document.getElementById('calibCoords').textContent = '加载截图...';
+  calibRect = null;
+
+  try {
+    const r = await fetch('/api/calibrate/screenshot', { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error, 'error'); closeCalibration(); return; }
+
+    const img = document.getElementById('calibImage');
+    img.src = d.image;
+    img.onload = () => {
+      const brect = img.getBoundingClientRect();
+      calibData = {
+        displayW: brect.width,
+        displayH: brect.height,
+        winW: d.win_width,
+        winH: d.win_height,
+        currentRegion: d.current_region,
+      };
+      document.getElementById('calibCoords').textContent =
+        `窗口: ${d.win_width}x${d.win_height} | 按住鼠标拖拽框选消息区域`;
+
+      // Show existing region if set
+      const cr = d.current_region;
+      if (cr.mode === 'percent' && cr.w_percent > 0.05 && cr.h_percent > 0.05) {
+        const x1 = cr.x_percent * brect.width;
+        const y1 = cr.y_percent * brect.height;
+        const x2 = (cr.x_percent + cr.w_percent) * brect.width;
+        const y2 = (cr.y_percent + cr.h_percent) * brect.height;
+        updateCalibBox(x1, y1, x2, y2);
+      }
+    };
+  } catch(e) {
+    toast('截图失败: ' + e.message, 'error');
+    closeCalibration();
+  }
+}
+
+function closeCalibration() {
+  document.getElementById('calibModal').classList.remove('active');
+}
+
+function updateCalibBox(x1, y1, x2, y2) {
+  calibRect = {
+    x1: Math.min(x1, x2), y1: Math.min(y1, y2),
+    x2: Math.max(x1, x2), y2: Math.max(y1, y2),
+  };
+  const box = document.getElementById('calibBox');
+  box.style.left = calibRect.x1 + 'px';
+  box.style.top = calibRect.y1 + 'px';
+  box.style.width = (calibRect.x2 - calibRect.x1) + 'px';
+  box.style.height = (calibRect.y2 - calibRect.y1) + 'px';
+  box.style.display = 'block';
+
+  if (calibData) {
+    const xPct = (calibRect.x1 / calibData.displayW * 100).toFixed(1);
+    const yPct = (calibRect.y1 / calibData.displayH * 100).toFixed(1);
+    const wPct = ((calibRect.x2 - calibRect.x1) / calibData.displayW * 100).toFixed(1);
+    const hPct = ((calibRect.y2 - calibRect.y1) / calibData.displayH * 100).toFixed(1);
+    document.getElementById('calibCoords').textContent =
+      `选中区域 | X:${xPct}% Y:${yPct}% W:${wPct}% H:${hPct}%`;
+  }
+}
+
+// Drag handlers
+(function() {
+  let dragging = false, startX, startY;
+  document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('calibContainer');
+    container.addEventListener('mousedown', (e) => {
+      if (!calibData) return;
+      const rect = container.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+      dragging = true;
+      updateCalibBox(startX, startY, startX, startY);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging || !calibData) return;
+      const rect = container.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, calibData.displayW));
+      const y = Math.max(0, Math.min(e.clientY - rect.top, calibData.displayH));
+      updateCalibBox(startX, startY, x, y);
+    });
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      if (calibRect && (calibRect.x2 - calibRect.x1) < 10 && (calibRect.y2 - calibRect.y1) < 10) {
+        document.getElementById('calibBox').style.display = 'none';
+        calibRect = null;
+        document.getElementById('calibCoords').textContent = '选区太小，请重新拖拽';
+      }
+    });
+  });
+})();
+
+async function applyCalibration() {
+  if (!calibRect || !calibData) {
+    toast('请先在截图上按住鼠标拖拽框选聊天区域', 'error');
+    return;
+  }
+  const w = calibRect.x2 - calibRect.x1, h = calibRect.y2 - calibRect.y1;
+  if (w < 20 || h < 20) { toast('选区太小，请重新拖拽', 'error'); return; }
+
+  const xPct = calibRect.x1 / calibData.displayW;
+  const yPct = calibRect.y1 / calibData.displayH;
+  const wPct = w / calibData.displayW;
+  const hPct = h / calibData.displayH;
+
+  const body = {
+    wechat: {
+      chat_region: {
+        mode: 'percent',
+        x_percent: Math.round(xPct * 1000) / 1000,
+        y_percent: Math.round(yPct * 1000) / 1000,
+        w_percent: Math.round(wPct * 1000) / 1000,
+        h_percent: Math.round(hPct * 1000) / 1000,
+      }
+    }
+  };
+
+  try {
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('regionDisplay').textContent =
+        `模式: 百分比 | X:${(xPct*100).toFixed(0)}% Y:${(yPct*100).toFixed(0)}% W:${(wPct*100).toFixed(0)}% H:${(hPct*100).toFixed(0)}%`;
+      toast('聊天区域已保存！', 'success');
+      closeCalibration();
+    } else { toast('保存失败', 'error'); }
+  } catch(e) { toast('连接失败', 'error'); }
+}
+
+// ===================== Logs (SSE) =====================
+function connectLogs() {
+  const evtSource = new EventSource('/api/logs');
+  evtSource.onmessage = (event) => {
+    const container = document.getElementById('logContainer');
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    div.textContent = event.data;
+    container.appendChild(div);
+    // Auto-scroll
+    container.scrollTop = container.scrollHeight;
+    // Keep max 200 lines
+    while (container.children.length > 200) {
+      container.removeChild(container.firstChild);
+    }
+  };
+  evtSource.onerror = () => {
+    // Will reconnect automatically
+  };
+}
+
+function clearLogs() {
+  const container = document.getElementById('logContainer');
+  container.innerHTML = '<div class="log-line">日志已清空</div>';
+}
+
+// ===================== Toast =====================
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+</script>
+
+</body>
+</html>

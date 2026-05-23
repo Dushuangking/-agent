@@ -1,0 +1,41 @@
+{
+    "wechat": {
+        "window_title": "微信",
+        "chat_region": {
+            "mode": "percent",
+            "x_percent": 0.341,
+            "y_percent": 0,
+            "w_percent": 0.657,
+            "h_percent": 0.986
+        }
+    },
+    "ocr": {
+        "lang": "ch"
+    },
+    "llm": {
+        "provider": "deepseek",
+        "api_key": "YOUR_DEEPSEEK_API_KEY_HERE",
+        "model": "deepseek-chat",
+        "max_tokens": 512,
+        "temperature": 0.85
+    },
+    "safety": {
+        "scan_interval_seconds": 3,
+        "max_replies_per_hour": 120,
+        "cooldown_min": 5,
+        "cooldown_max": 10,
+        "burst_limit": 3,
+        "burst_cooldown": 30,
+        "allowed_start_hour": 7,
+        "allowed_end_hour": 26,
+        "random_delay_min": 0.3,
+        "random_delay_max": 1.5
+    },
+    "typing": {
+        "wpm": 320,
+        "typo_rate": 0.01,
+        "pause_rate": 0.03
+    },
+    "personality_file": "personality/default.txt",
+    "friends_dir": "personality/friends"
+}
